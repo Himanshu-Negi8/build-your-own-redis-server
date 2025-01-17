@@ -2,19 +2,17 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"time"
 
 	"github.com/Himanshu-Negi8/build-your-own-redis-server/handler"
 	"github.com/Himanshu-Negi8/build-your-own-redis-server/parser"
 	"github.com/Himanshu-Negi8/build-your-own-redis-server/types"
 )
-
-const workers = 3
 
 func main() {
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
@@ -25,49 +23,26 @@ func main() {
 	defer l.Close()
 
 	cache := make(map[string]types.CustomValue)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	connChan := make(chan net.Conn)
-	for i := 1; i <= workers; i++ {
-		go worker(ctx, connChan, cache)
-	}
 
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			conn, err := l.Accept()
-			if err != nil {
-				fmt.Println("failed to serve requests")
-				continue
-			}
-			connChan <- conn
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("failed to serve requests")
+			continue
 		}
-	}
-}
 
-// creating a worker pool which will have a ctx when signaled it will return
-func worker(ctx context.Context, connCh chan net.Conn, cache map[string]types.CustomValue) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case conn, ok := <-connCh:
-			if !ok {
-				// Channel closed, exit the worker
-				return
-			}
-			handleConnectionRequest(conn, cache)
-		}
+		conn.SetReadDeadline(time.Now().Add(time.Second * 10)) // Timeout after 10 seconds
+		go handleConnectionRequest(conn, cache)
 	}
+
 }
 
 func handleConnectionRequest(conn net.Conn, cache map[string]types.CustomValue) {
 	defer conn.Close()
 	buf := make([]byte, 2048)
 
+	// The reason for this infinite loop is to handle all the incoming commands within the same connection.
+	// Obviously since it's socket connection, it will be closed by the client after the client is done with the commands.
 	for {
 		// Read the client's input
 		_, err := conn.Read(buf)
