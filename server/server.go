@@ -102,6 +102,7 @@ func handleConnectionRequest(ctx context.Context, conn net.Conn, cache map[strin
 			// Parse the RESP command
 			r := bytes.NewReader(buf)
 			result, respType, err := parser.Parse(r)
+			fmt.Println(respType)
 			if err != nil {
 				fmt.Println("Error parsing RESP:", err)
 				conn.Write([]byte("-ERR invalid command\r\n"))

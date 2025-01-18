@@ -14,36 +14,30 @@ const (
 )
 
 func HandleCommands(commandTokens interface{}, respType types.RESPType, cache map[string]types.CustomValue) []byte {
+	arr := commandTokens.([]interface{})
 	// Process the command based on its type
 	switch respType {
 	case types.RESPTypeArray:
-		arr := commandTokens.([]interface{})
-		if len(arr) >= 1 {
-			switch arr[0].(string) {
-			case "PING":
-				return []byte("+PONG\r\n")
-			case "ECHO":
-				return echoCommand(arr)
-			case "SET":
-				return setCommand(arr, cache)
-			case "GET":
-				return getCommand(arr, cache)
-			case "CONFIG":
-				return configCommand(arr)
-			case "SAVE":
-				return saveCommand(arr, cache)
-			}
-
-		} else {
-			return []byte("-ERR unknown command\r\n")
+		switch arr[0].(string) {
+		case "ECHO":
+			return echoCommand(arr)
+		case "SET":
+			return setCommand(arr, cache)
+		case "GET":
+			return getCommand(arr, cache)
+		case "CONFIG":
+			return configCommand(arr)
+		case "SAVE":
+			return saveCommand(arr, cache)
 		}
 	case types.RESPTypeSimpleString:
+		if arr[0].(string) == "PING" {
+			return []byte("+PONG\r\n")
+		}
 		return []byte("+OK\r\n")
-	default:
-		return []byte("-ERR unsupported RESP type\r\n")
 	}
 
-	return []byte("-ERR unsupported RESP type\r\n")
+	return []byte("-ERR unknown command\r\n")
 }
 
 func echoCommand(arr []interface{}) []byte {
@@ -62,23 +56,28 @@ func setCommand(arr []interface{}, cache map[string]types.CustomValue) []byte {
 	// SET <key> <value>
 	// SET <key> <value> <px> <expiration>
 	// In RESP we will receive the key as *3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n which is an array of 3 elements
-	key := arr[1].(string)
-	value := arr[2].(string)
 	if len(arr) == 5 {
+		key := arr[1].(string)
+		value := arr[2].(string)
+
 		expiration, err := strconv.ParseInt(arr[4].(string), 10, 64)
 		if err != nil {
 			return []byte("-ERR invalid expiration value\r\n")
 
 		}
+
 		cache[key] = types.CustomValue{Value: value, ValueExpiration: time.Now().UnixMilli() + expiration}
+		return []byte(fmt.Sprintf("+OK\r\n"))
 	} else if len(arr) == 3 {
+		key := arr[1].(string)
+		value := arr[2].(string)
+
 		// This is without the expiration time.
 		cache[key] = types.CustomValue{Value: value, ValueExpiration: -1}
-	} else {
-		return []byte("-ERR wrong number of arguments for 'SET' command\r\n")
+		return []byte(fmt.Sprintf("+OK\r\n"))
 	}
 
-	return []byte(fmt.Sprintf("+OK\r\n"))
+	return []byte("-ERR wrong number of arguments for 'SET' command\r\n")
 }
 
 func getCommand(arr []interface{}, cache map[string]types.CustomValue) []byte {
