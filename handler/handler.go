@@ -14,6 +14,13 @@ const (
 )
 
 func HandleCommands(commandTokens interface{}, respType types.RESPType, cache map[string]types.CustomValue) []byte {
+	if respType == types.RESPTypeSimpleString {
+		if commandTokens.(string) == "PING" {
+			return []byte("+PONG\r\n")
+		}
+		return []byte("+OK\r\n")
+	}
+
 	arr := commandTokens.([]interface{})
 	// Process the command based on its type
 	switch respType {
@@ -30,11 +37,6 @@ func HandleCommands(commandTokens interface{}, respType types.RESPType, cache ma
 		case "SAVE":
 			return saveCommand(arr, cache)
 		}
-	case types.RESPTypeSimpleString:
-		if arr[0].(string) == "PING" {
-			return []byte("+PONG\r\n")
-		}
-		return []byte("+OK\r\n")
 	}
 
 	return []byte("-ERR unknown command\r\n")
